@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getTransactionsByDate, createTransaction, getExpensesByDate, createExpense } from '@/app/actions/transactions';
+import { 
+  getTransactionsByDate, 
+  createTransaction, 
+  updateTransaction,
+  deleteTransaction,
+  getExpensesByDate, 
+  createExpense,
+  updateExpense,
+  deleteExpense 
+} from '@/app/actions/transactions';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { formatDate } from './utils';
 
@@ -18,6 +27,10 @@ export default function TransactionSection() {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [transactionMessage, setTransactionMessage] = useState('');
   const [expenseMessage, setExpenseMessage] = useState('');
+  const [editingTransactionId, setEditingTransactionId] = useState(null);
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [isEditingTransaction, setIsEditingTransaction] = useState(false);
+  const [isEditingExpense, setIsEditingExpense] = useState(false);
 
   // Fetch data
   const fetchData = useCallback(async () => {

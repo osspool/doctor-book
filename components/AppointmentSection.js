@@ -1,178 +1,105 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { getAppointments, createAppointment } from '@/app/actions/appointments';
+import { useState, useCallback } from 'react';
+import { useTodayAppointments, useAppointmentActions } from '@/hooks/useAppointments';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { formatDate, formatTime } from './utils';
+import Modal from './Modal';
+import AppointmentForm from './AppointmentForm';
 
 export default function AppointmentSection() {
-  const [appointments, setAppointments] = useState([]);
-  const [patientName, setPatientName] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [workDescription, setWorkDescription] = useState('');
-  const [appointmentDate, setAppointmentDate] = useState('');
-  const [appointmentTime, setAppointmentTime] = useState('');
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState(null);
 
   // Clinic hours and closed day
   const clinicHoursMorning = { start: 10, end: 13 }; // 10 AM to 1 PM
   const clinicHoursEvening = { start: 17, end: 21 }; // 5 PM to 9 PM
   const closedDay = 2; // Tuesday (0=Sunday, 1=Monday, ..., 6=Saturday)
 
-  // Fetch appointments
-  const fetchAppointments = useCallback(async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const result = await getAppointments(today);
-    
-    if (result.error) {
-      setMessage('অ্যাপয়েন্টমেন্ট লোড করতে ব্যর্থ।');
-    } else {
-      setAppointments(result.data || []);
-    }
-  }, []);
+  // Use hooks
+  const { appointments, isLoading, error } = useTodayAppointments();
+  const { 
+    createAppointment, 
+    updateAppointment, 
+    deleteAppointment,
+    isCreating,
+    isUpdating,
+    isDeleting
+  } = useAppointmentActions();
 
-  useEffect(() => {
-    fetchAppointments();
-  }, [fetchAppointments]);
+  // Real-time updates (handled in the hook)
+  useSupabaseRealtime('appointments', useCallback(() => {
+    // Real-time invalidation is handled in the hooks
+  }, []));
 
-  // Real-time updates
-  useSupabaseRealtime('appointments', useCallback((payload) => {
-    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-      fetchAppointments();
-    }
-  }, [fetchAppointments]));
+  const handleEdit = (appointment) => {
+    setEditingAppointment(appointment);
+    setIsModalOpen(true);
+  };
 
-  const handleAddAppointment = async (e) => {
-    e.preventDefault();
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingAppointment(null);
     setMessage('');
+  };
 
-    if (!patientName || !mobileNumber || !workDescription || !appointmentDate || !appointmentTime) {
-      setMessage('সব তথ্য পূরণ করুন।');
-      return;
-    }
-
-    const selectedDate = new Date(appointmentDate);
-    const dayOfWeek = selectedDate.getDay();
-    const [hours] = appointmentTime.split(':').map(Number);
-
-    // Check for closed day
-    if (dayOfWeek === closedDay) {
-      setMessage('মঙ্গলবার চেম্বার বন্ধ থাকে।');
-      return;
-    }
-
-    // Check for clinic hours
-    const isMorningHours = hours >= clinicHoursMorning.start && hours < clinicHoursMorning.end;
-    const isEveningHours = hours >= clinicHoursEvening.start && hours < clinicHoursEvening.end;
-
-    if (!isMorningHours && !isEveningHours) {
-      setMessage('চেম্বার সকাল ১০টা-১টা এবং বিকাল ৫টা-৯টা পর্যন্ত খোলা থাকে।');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await createAppointment({
-        patient_name: patientName,
-        mobile_number: mobileNumber,
-        work_description: workDescription,
-        appointment_date: appointmentDate,
-        appointment_time: appointmentTime
-      });
-
-      if (result.error) {
-        setMessage('অ্যাপয়েন্টমেন্ট যোগ করতে ব্যর্থ।');
-      } else {
-        setMessage('অ্যাপয়েন্টমেন্ট সফলভাবে যোগ করা হয়েছে!');
-        setPatientName('');
-        setMobileNumber('');
-        setWorkDescription('');
-        setAppointmentDate('');
-        setAppointmentTime('');
-        fetchAppointments();
+  const handleDelete = async (id) => {
+    if (confirm('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্ট মুছে ফেলতে চান?')) {
+      try {
+        await deleteAppointment(id);
+        setMessage('অ্যাপয়েন্টমেন্ট সফলভাবে মুছে ফেলা হয়েছে।');
+      } catch (error) {
+        setMessage('অ্যাপয়েন্টমেন্ট মুছতে ব্যর্থ।');
       }
-    } catch (error) {
-      console.error('Error adding appointment:', error);
-      setMessage('অ্যাপয়েন্টমেন্ট যোগ করতে ব্যর্থ।');
-    } finally {
-      setLoading(false);
     }
   };
 
-  return (
+  const handleFormSubmit = async (formData) => {
+    try {
+      if (editingAppointment) {
+        // Update existing appointment (from modal)
+        await updateAppointment({ id: editingAppointment.id, data: formData });
+        setMessage('অ্যাপয়েন্টমেন্ট সফলভাবে আপডেট করা হয়েছে!');
+        handleCloseModal();
+      } else {
+        // Create new appointment (from main form)
+        await createAppointment(formData);
+        setMessage('অ্যাপয়েন্টমেন্ট সফলভাবে যোগ করা হয়েছে!');
+        // Don't close modal since this is the main form
+      }
+    } catch (error) {
+      setMessage(editingAppointment ? 'অ্যাপয়েন্টমেন্ট আপডেট করতে ব্যর্থ।' : 'অ্যাপয়েন্টমেন্ট যোগ করতে ব্যর্থ।');
+    }
+  };
+
+      return (
     <div className="p-4">
       <h2 className="text-3xl font-bold text-gray-800 mb-6 border-b pb-3">নতুন অ্যাপয়েন্টমেন্ট</h2>
-      <form onSubmit={handleAddAppointment} className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50 p-6 rounded-lg shadow-inner">
-        <div>
-          <label htmlFor="patientName" className="block text-gray-800 text-sm font-semibold mb-2">রোগীর নাম:</label>
-          <input
-            type="text"
-            id="patientName"
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-            value={patientName}
-            onChange={(e) => setPatientName(e.target.value)}
-            required
-          />
+      
+      {/* Create Form - Always Visible */}
+      <div className="bg-blue-50 p-6 rounded-lg shadow-inner mb-8">
+        <AppointmentForm
+          appointment={null}
+          onSubmit={handleFormSubmit}
+          onCancel={() => setMessage('')}
+          isLoading={isCreating}
+        />
+      </div>
+
+      {message && (
+        <div className="mb-4 p-3 bg-blue-100 text-blue-800 rounded-md">
+          {message}
         </div>
-        <div>
-          <label htmlFor="mobileNumber" className="block text-gray-800 text-sm font-semibold mb-2">মোবাইল নম্বর:</label>
-          <input
-            type="tel"
-            id="mobileNumber"
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-            value={mobileNumber}
-            onChange={(e) => setMobileNumber(e.target.value)}
-            required
-          />
-        </div>
-        <div className="md:col-span-2">
-          <label htmlFor="workDescription" className="block text-gray-800 text-sm font-semibold mb-2">কি কাজ করা হবে:</label>
-          <textarea
-            id="workDescription"
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-            rows="3"
-            value={workDescription}
-            onChange={(e) => setWorkDescription(e.target.value)}
-            required
-          ></textarea>
-        </div>
-        <div>
-          <label htmlFor="appointmentDate" className="block text-gray-800 text-sm font-semibold mb-2">তারিখ:</label>
-          <input
-            type="date"
-            id="appointmentDate"
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-            value={appointmentDate}
-            onChange={(e) => setAppointmentDate(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor="appointmentTime" className="block text-gray-800 text-sm font-semibold mb-2">সময়:</label>
-          <input
-            type="time"
-            id="appointmentTime"
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-            value={appointmentTime}
-            onChange={(e) => setAppointmentTime(e.target.value)}
-            required
-          />
-        </div>
-        <div className="md:col-span-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300 ease-in-out transform hover:scale-105 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'যোগ করা হচ্ছে...' : 'অ্যাপয়েন্টমেন্ট যোগ করুন'}
-          </button>
-        </div>
-        {message && <p className="md:col-span-2 text-center text-sm mt-2 text-blue-600">{message}</p>}
-      </form>
+      )}
 
       <h2 className="text-3xl font-bold text-gray-800 mt-10 mb-6 border-b pb-3">আসন্ন অ্যাপয়েন্টমেন্ট (আজকের)</h2>
-      {appointments.length === 0 ? (
+      
+      {isLoading ? (
+        <p className="text-gray-600 text-center py-8">লোড হচ্ছে...</p>
+      ) : error ? (
+        <p className="text-red-500 text-center py-8">ডেটা লোড করতে সমস্যা হয়েছে</p>
+      ) : appointments.length === 0 ? (
         <p className="text-gray-600 text-center py-8">কোনো অ্যাপয়েন্টমেন্ট নেই।</p>
       ) : (
         <div className="overflow-x-auto">
@@ -183,7 +110,8 @@ export default function AppointmentSection() {
                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">সময়</th>
                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">রোগীর নাম</th>
                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">মোবাইল</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">কাজের বিবরণ</th>
+                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">কাজের বিবরণ</th>
+                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">কার্যক্রম</th>
               </tr>
             </thead>
             <tbody>
@@ -194,6 +122,24 @@ export default function AppointmentSection() {
                   <td className="py-3 px-4 text-sm text-gray-800">{appt.patient_name}</td>
                   <td className="py-3 px-4 text-sm text-gray-800">{appt.mobile_number}</td>
                   <td className="py-3 px-4 text-sm text-gray-800">{appt.work_description}</td>
+                  <td className="py-3 px-4 text-sm text-gray-800">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEdit(appt)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium"
+                        title="সম্পাদনা"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(appt.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-medium"
+                        title="মুছুন"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -203,6 +149,20 @@ export default function AppointmentSection() {
       <p className="text-gray-600 text-sm mt-4 text-center">
         চেম্বার সকাল ১০টা থেকে দুপুর ১টা এবং বিকাল ৫টা থেকে রাত ৯টা পর্যন্ত খোলা। মঙ্গলবার বন্ধ।
       </p>
+
+      {/* Edit Modal - Only for Updates */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        title="অ্যাপয়েন্টমেন্ট সম্পাদনা"
+      >
+        <AppointmentForm
+          appointment={editingAppointment}
+          onSubmit={handleFormSubmit}
+          onCancel={handleCloseModal}
+          isLoading={isUpdating}
+        />
+      </Modal>
     </div>
   );
 } 

@@ -63,6 +63,42 @@ export async function createTransaction(transactionData) {
   return { data };
 }
 
+export async function updateTransaction(id, updates) {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating transaction:', error);
+    return { error: error.message };
+  }
+
+  return { data };
+}
+
+export async function deleteTransaction(id) {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting transaction:', error);
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
 // ==================== EXPENSES ====================
 
 export async function getExpensesByDate(date) {
@@ -121,4 +157,40 @@ export async function createExpense(expenseData) {
   }
 
   return { data };
+}
+
+export async function updateExpense(id, updates) {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating expense:', error);
+    return { error: error.message };
+  }
+
+  return { data };
+}
+
+export async function deleteExpense(id) {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const { error } = await supabase
+    .from('expenses')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting expense:', error);
+    return { error: error.message };
+  }
+
+  return { success: true };
 } 

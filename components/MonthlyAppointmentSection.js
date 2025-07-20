@@ -1,42 +1,60 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { getMonthlyAppointments } from '@/app/actions/appointments';
+import { useState, useCallback } from 'react';
+import { useMonthlyAppointments, useAppointmentActions } from '@/hooks/useAppointments';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
 import { formatDate, formatTime } from './utils';
+import Modal from './Modal';
+import AppointmentForm from './AppointmentForm';
 
 export default function MonthlyAppointmentSection() {
-  const [monthlyAppointments, setMonthlyAppointments] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM format
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState(null);
 
-  // Fetch appointments
-  const fetchAppointments = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  // Parse selected month
+  const [year, month] = selectedMonth.split('-').map(Number);
+  
+  // Use hooks
+  const { appointments: monthlyAppointments, isLoading, error } = useMonthlyAppointments(year, month);
+  const { updateAppointment, deleteAppointment, isUpdating } = useAppointmentActions();
 
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const result = await getMonthlyAppointments(year, month);
+  // Real-time updates (handled in hooks)
+  useSupabaseRealtime('appointments', useCallback(() => {
+    // Real-time invalidation is handled in the hooks
+  }, []));
 
-    if (result.error) {
-      setError('মাসিক অ্যাপয়েন্টমেন্ট লোড করতে ব্যর্থ।');
-    } else {
-      setMonthlyAppointments(result.data || []);
+  const handleEdit = (appointment) => {
+    setEditingAppointment(appointment);
+    setIsModalOpen(true);
+  };
+
+  const handleFormSubmit = async (formData) => {
+    try {
+      await updateAppointment({ id: editingAppointment.id, data: formData });
+      setMessage('অ্যাপয়েন্টমেন্ট আপডেট হয়েছে');
+      handleCloseModal();
+    } catch (error) {
+      setMessage('আপডেট করতে সমস্যা হয়েছে');
     }
-    setLoading(false);
-  }, [selectedMonth]);
+  };
 
-  useEffect(() => {
-    fetchAppointments();
-  }, [fetchAppointments]);
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingAppointment(null);
+  };
 
-  // Real-time updates
-  useSupabaseRealtime('appointments', useCallback((payload) => {
-    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-      fetchAppointments();
+  const handleDelete = async (id) => {
+    if (confirm('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্ট মুছে ফেলতে চান?')) {
+      try {
+        await deleteAppointment(id);
+        setMessage('অ্যাপয়েন্টমেন্ট মুছে ফেলা হয়েছে');
+      } catch (error) {
+        setMessage('মুছতে সমস্যা হয়েছে');
+      }
     }
-  }, [fetchAppointments]));
+  };
 
   const getMonthName = (dateString) => {
     const [year, month] = dateString.split('-');
@@ -59,10 +77,16 @@ export default function MonthlyAppointmentSection() {
         />
       </div>
 
-      {loading ? (
+      {message && (
+        <div className="mb-4 p-3 bg-blue-100 text-blue-800 rounded-md">
+          {message}
+        </div>
+      )}
+
+      {isLoading ? (
         <p className="text-center text-gray-600 py-8">লোড হচ্ছে...</p>
       ) : error ? (
-        <p className="text-center text-red-500 py-8">{error}</p>
+        <p className="text-center text-red-500 py-8">ডেটা লোড করতে সমস্যা হয়েছে</p>
       ) : (
         <>
           <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">{getMonthName(selectedMonth)} মাসের অ্যাপয়েন্টমেন্ট</h3>
@@ -77,7 +101,8 @@ export default function MonthlyAppointmentSection() {
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">সময়</th>
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">রোগীর নাম</th>
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">মোবাইল</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">কাজের বিবরণ</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">কাজের বিবরণ</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">কার্যক্রম</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -88,6 +113,24 @@ export default function MonthlyAppointmentSection() {
                   <td className="py-3 px-4 text-sm text-gray-800">{appt.patient_name}</td>
                   <td className="py-3 px-4 text-sm text-gray-800">{appt.mobile_number}</td>
                   <td className="py-3 px-4 text-sm text-gray-800">{appt.work_description}</td>
+                  <td className="py-3 px-4 text-sm text-gray-800">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEdit(appt)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"
+                        title="Edit"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDelete(appt.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
                     </tr>
                   ))}
                 </tbody>
@@ -96,6 +139,20 @@ export default function MonthlyAppointmentSection() {
           )}
         </>
       )}
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        title="অ্যাপয়েন্টমেন্ট সম্পাদনা"
+      >
+        <AppointmentForm
+          appointment={editingAppointment}
+          onSubmit={handleFormSubmit}
+          onCancel={handleCloseModal}
+          isLoading={isUpdating}
+        />
+      </Modal>
     </div>
   );
 } 
