@@ -90,28 +90,31 @@ export default function AppointmentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-gray-800 text-sm font-semibold mb-2">রোগীর নাম:</label>
-        <input
-          type="text"
-          value={patientName}
-          onChange={(e) => setPatientName(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-          required
-        />
+      {/* First row: Patient Name & Mobile Number */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1">
+          <label className="block text-gray-800 text-sm font-semibold mb-2">রোগীর নাম:</label>
+          <input
+            type="text"
+            value={patientName}
+            onChange={(e) => setPatientName(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+            required
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-gray-800 text-sm font-semibold mb-2">মোবাইল নম্বর:</label>
+          <input
+            type="text"
+            value={mobileNumber}
+            onChange={(e) => setMobileNumber(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+            required
+          />
+        </div>
       </div>
 
-      <div>
-        <label className="block text-gray-800 text-sm font-semibold mb-2">মোবাইল নম্বর:</label>
-        <input
-          type="text"
-          value={mobileNumber}
-          onChange={(e) => setMobileNumber(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-          required
-        />
-      </div>
-
+      {/* Work Description (full width) */}
       <div>
         <label className="block text-gray-800 text-sm font-semibold mb-2">কাজের বিবরণ:</label>
         <textarea
@@ -123,26 +126,28 @@ export default function AppointmentForm({
         />
       </div>
 
-      <div>
-        <label className="block text-gray-800 text-sm font-semibold mb-2">তারিখ:</label>
-        <input
-          type="date"
-          value={appointmentDate}
-          onChange={(e) => setAppointmentDate(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-gray-800 text-sm font-semibold mb-2">সময়:</label>
-        <input
-          type="time"
-          value={appointmentTime}
-          onChange={(e) => setAppointmentTime(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-          required
-        />
+      {/* Last row: Date & Time */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1">
+          <label className="block text-gray-800 text-sm font-semibold mb-2">তারিখ:</label>
+          <input
+            type="date"
+            value={appointmentDate}
+            onChange={(e) => setAppointmentDate(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+            required
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-gray-800 text-sm font-semibold mb-2">সময়:</label>
+          <input
+            type="time"
+            value={appointmentTime}
+            onChange={(e) => setAppointmentTime(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+            required
+          />
+        </div>
       </div>
 
       <div className="flex gap-3 pt-4">
