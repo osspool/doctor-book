@@ -19,7 +19,7 @@ export default function AppointmentForm({
   const clinicHoursEvening = { start: 17, end: 21 }; // 5 PM to 9 PM
   const closedDay = 2; // Tuesday
 
-  // Fill form when editing
+  // Pre-fill form when editing
   useEffect(() => {
     if (appointment) {
       setPatientName(appointment.patient_name || '');
@@ -27,6 +27,13 @@ export default function AppointmentForm({
       setWorkDescription(appointment.work_description || '');
       setAppointmentDate(appointment.appointment_date || '');
       setAppointmentTime(appointment.appointment_time || '');
+    } else {
+      // Clear form for new appointments
+      setPatientName('');
+      setMobileNumber('');
+      setWorkDescription('');
+      setAppointmentDate('');
+      setAppointmentTime('');
     }
   }, [appointment]);
 
@@ -81,102 +88,80 @@ export default function AppointmentForm({
     }
   };
 
-  const handleCancel = () => {
-    setPatientName('');
-    setMobileNumber('');
-    setWorkDescription('');
-    setAppointmentDate('');
-    setAppointmentTime('');
-    onCancel();
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="patientName" className="block text-gray-800 text-sm font-semibold mb-2">
-          রোগীর নাম:
-        </label>
+        <label className="block text-gray-800 text-sm font-semibold mb-2">রোগীর নাম:</label>
         <input
           type="text"
-          id="patientName"
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
           value={patientName}
           onChange={(e) => setPatientName(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
           required
         />
       </div>
 
       <div>
-        <label htmlFor="mobileNumber" className="block text-gray-800 text-sm font-semibold mb-2">
-          মোবাইল নম্বর:
-        </label>
+        <label className="block text-gray-800 text-sm font-semibold mb-2">মোবাইল নম্বর:</label>
         <input
-          type="tel"
-          id="mobileNumber"
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+          type="text"
           value={mobileNumber}
           onChange={(e) => setMobileNumber(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
           required
         />
       </div>
 
-      <div className="md:col-span-2">
-        <label htmlFor="workDescription" className="block text-gray-800 text-sm font-semibold mb-2">
-          কি কাজ করা হবে:
-        </label>
+      <div>
+        <label className="block text-gray-800 text-sm font-semibold mb-2">কাজের বিবরণ:</label>
         <textarea
-          id="workDescription"
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-          rows="3"
           value={workDescription}
           onChange={(e) => setWorkDescription(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+          rows="2"
           required
         />
       </div>
 
       <div>
-        <label htmlFor="appointmentDate" className="block text-gray-800 text-sm font-semibold mb-2">
-          তারিখ:
-        </label>
+        <label className="block text-gray-800 text-sm font-semibold mb-2">তারিখ:</label>
         <input
           type="date"
-          id="appointmentDate"
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
           value={appointmentDate}
           onChange={(e) => setAppointmentDate(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
           required
         />
       </div>
 
       <div>
-        <label htmlFor="appointmentTime" className="block text-gray-800 text-sm font-semibold mb-2">
-          সময়:
-        </label>
+        <label className="block text-gray-800 text-sm font-semibold mb-2">সময়:</label>
         <input
           type="time"
-          id="appointmentTime"
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
           value={appointmentTime}
           onChange={(e) => setAppointmentTime(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
           required
         />
       </div>
 
-      <div className="md:col-span-2 flex gap-4 pt-4">
+      <div className="flex gap-3 pt-4">
         <button
           type="submit"
           disabled={isLoading}
-          className="flex-1 bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300 ease-in-out font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 disabled:bg-blue-300 font-semibold transition duration-300 ease-in-out transform hover:scale-105"
         >
-          {isLoading ? (appointment ? 'আপডেট করা হচ্ছে...' : 'যোগ করা হচ্ছে...') : (appointment ? 'আপডেট করুন' : 'অ্যাপয়েন্টমেন্ট যোগ করুন')}
+          {isLoading ? 'যোগ হচ্ছে...' : (appointment ? 'আপডেট করুন' : 'অ্যাপয়েন্টমেন্ট যোগ করুন')}
         </button>
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="px-6 bg-gray-500 text-white py-3 rounded-md hover:bg-gray-600 transition duration-300 ease-in-out font-semibold"
-        >
-          বাতিল
-        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 bg-gray-600 text-white py-3 rounded-md hover:bg-gray-700 font-semibold transition duration-300 ease-in-out"
+          >
+            বাতিল
+          </button>
+        )}
       </div>
     </form>
   );

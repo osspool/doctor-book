@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import AuthProvider from '../components/AuthProvider';
 import Navigation from '../components/Navigation';
-import AppointmentSection from '../components/AppointmentSection';
+import AppointmentSection from '../components/sections/AppointmentSection';
 import MonthlyAppointmentSection from '../components/MonthlyAppointmentSection';
 import TransactionSection from '../components/TransactionSection';
 import MonthlySummarySection from '../components/MonthlySummarySection';

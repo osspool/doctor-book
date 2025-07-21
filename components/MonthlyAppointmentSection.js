@@ -3,9 +3,9 @@
 import { useState, useCallback } from 'react';
 import { useMonthlyAppointments, useAppointmentActions } from '@/hooks/useAppointments';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { formatDate, formatTime } from './utils';
-import Modal from './Modal';
-import AppointmentForm from './AppointmentForm';
+import { formatDate, formatTime } from './ui/utils';
+import Modal from './ui/Modal';
+import AppointmentForm from './forms/AppointmentForm';
 
 export default function MonthlyAppointmentSection() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM format

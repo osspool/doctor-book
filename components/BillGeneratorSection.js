@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { numberToWordsBn, formatDate } from './utils';
+import { numberToWordsBn, formatDate } from './ui/utils';
 
 export default function BillGeneratorSection() {
   const [patientName, setPatientName] = useState('');

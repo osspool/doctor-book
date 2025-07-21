@@ -1,22 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { 
-  getTransactionsByDate, 
-  createTransaction, 
-  updateTransaction,
-  deleteTransaction,
-  getExpensesByDate, 
-  createExpense,
-  updateExpense,
-  deleteExpense 
-} from '@/app/actions/transactions';
+  useTransactionsByDate,
+  useExpensesByDate,
+  useTransactionActions,
+  useExpenseActions
+} from '@/hooks/useTransactions';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
-import { formatDate } from './utils';
+import { formatDate } from './ui/utils';
+import Modal from './ui/Modal';
+import TransactionForm from './forms/TransactionForm';
+import ExpenseForm from './forms/ExpenseForm';
+import ActionButtons from './ui/ActionButtons';
+import LoadingSpinner from './ui/LoadingSpinner';
+import ErrorMessage from './ui/ErrorMessage';
+import SuccessMessage from './ui/SuccessMessage';
 
 export default function TransactionSection() {
-  const [transactions, setTransactions] = useState([]);
-  const [expenses, setExpenses] = useState([]);
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
   const [patientName, setPatientName] = useState('');
   const [workDone, setWorkDone] = useState('');
@@ -27,47 +28,27 @@ export default function TransactionSection() {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [transactionMessage, setTransactionMessage] = useState('');
   const [expenseMessage, setExpenseMessage] = useState('');
-  const [editingTransactionId, setEditingTransactionId] = useState(null);
-  const [editingExpenseId, setEditingExpenseId] = useState(null);
-  const [isEditingTransaction, setIsEditingTransaction] = useState(false);
-  const [isEditingExpense, setIsEditingExpense] = useState(false);
+  
+  // Modal states
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [editingExpense, setEditingExpense] = useState(null);
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    const [transactionsResult, expensesResult] = await Promise.all([
-      getTransactionsByDate(transactionDate),
-      getExpensesByDate(transactionDate)
-    ]);
+  // Use hooks
+  const { transactions, isLoading: transactionsLoading, error: transactionsError } = useTransactionsByDate(transactionDate);
+  const { expenses, isLoading: expensesLoading, error: expensesError } = useExpensesByDate(transactionDate);
+  const { createTransaction, updateTransaction, deleteTransaction, isCreating: isCreatingTransaction, isUpdating: isUpdatingTransaction } = useTransactionActions();
+  const { createExpense, updateExpense, deleteExpense, isCreating: isCreatingExpense, isUpdating: isUpdatingExpense } = useExpenseActions();
 
-    if (transactionsResult.error) {
-      setTransactionMessage('লেনদেন লোড করতে ব্যর্থ।');
-    } else {
-      setTransactions(transactionsResult.data || []);
-    }
+  // Real-time updates (handled in hooks)
+  useSupabaseRealtime('transactions', useCallback(() => {
+    // Real-time invalidation is handled in the hooks
+  }, []));
 
-    if (expensesResult.error) {
-      setExpenseMessage('খরচ লোড করতে ব্যর্থ।');
-    } else {
-      setExpenses(expensesResult.data || []);
-    }
-  }, [transactionDate]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Real-time updates
-  useSupabaseRealtime('transactions', useCallback((payload) => {
-    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-      fetchData();
-    }
-  }, [fetchData]));
-
-  useSupabaseRealtime('expenses', useCallback((payload) => {
-    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-      fetchData();
-    }
-  }, [fetchData]));
+  useSupabaseRealtime('expenses', useCallback(() => {
+    // Real-time invalidation is handled in the hooks
+  }, []));
 
   const handleAddTransaction = async (e) => {
     e.preventDefault();
@@ -79,7 +60,7 @@ export default function TransactionSection() {
     }
 
     try {
-      const result = await createTransaction({
+      await createTransaction({
         date: transactionDate,
         patient_name: patientName,
         work_done: workDone,
@@ -88,18 +69,12 @@ export default function TransactionSection() {
         is_free: isFree
       });
 
-      if (result.error) {
-        setTransactionMessage('লেনদেন যোগ করতে ব্যর্থ।');
-      } else {
-        setTransactionMessage('লেনদেন সফলভাবে যোগ করা হয়েছে!');
-        setPatientName('');
-        setWorkDone('');
-        setAmountPaid('');
-        setIsFree(false);
-        fetchData();
-      }
+      setTransactionMessage('লেনদেন সফলভাবে যোগ করা হয়েছে!');
+      setPatientName('');
+      setWorkDone('');
+      setAmountPaid('');
+      setIsFree(false);
     } catch (error) {
-      console.error('Error adding transaction:', error);
       setTransactionMessage('লেনদেন যোগ করতে ব্যর্থ।');
     }
   };
@@ -114,23 +89,73 @@ export default function TransactionSection() {
     }
 
     try {
-      const result = await createExpense({
+      await createExpense({
         date: transactionDate,
         description: expenseDescription,
         amount: parseFloat(expenseAmount)
       });
 
-      if (result.error) {
-        setExpenseMessage('খরচ যোগ করতে ব্যর্থ।');
-      } else {
-        setExpenseMessage('খরচ সফলভাবে যোগ করা হয়েছে!');
-        setExpenseDescription('');
-        setExpenseAmount('');
-        fetchData();
-      }
+      setExpenseMessage('খরচ সফলভাবে যোগ করা হয়েছে!');
+      setExpenseDescription('');
+      setExpenseAmount('');
     } catch (error) {
-      console.error('Error adding expense:', error);
       setExpenseMessage('খরচ যোগ করতে ব্যর্থ।');
+    }
+  };
+
+  // Transaction edit/delete handlers
+  const handleEditTransaction = (transaction) => {
+    setEditingTransaction(transaction);
+    setIsTransactionModalOpen(true);
+  };
+
+  const handleDeleteTransaction = async (id) => {
+    if (confirm('আপনি কি নিশ্চিত যে এই লেনদেন মুছে ফেলতে চান?')) {
+      try {
+        await deleteTransaction(id);
+        setTransactionMessage('লেনদেন সফলভাবে মুছে ফেলা হয়েছে।');
+      } catch (error) {
+        setTransactionMessage('লেনদেন মুছতে ব্যর্থ।');
+      }
+    }
+  };
+
+  const handleUpdateTransaction = async (formData) => {
+    try {
+      await updateTransaction({ id: editingTransaction.id, data: formData });
+      setTransactionMessage('লেনদেন সফলভাবে আপডেট করা হয়েছে!');
+      setIsTransactionModalOpen(false);
+      setEditingTransaction(null);
+    } catch (error) {
+      setTransactionMessage('লেনদেন আপডেট করতে ব্যর্থ।');
+    }
+  };
+
+  // Expense edit/delete handlers
+  const handleEditExpense = (expense) => {
+    setEditingExpense(expense);
+    setIsExpenseModalOpen(true);
+  };
+
+  const handleDeleteExpense = async (id) => {
+    if (confirm('আপনি কি নিশ্চিত যে এই খরচ মুছে ফেলতে চান?')) {
+      try {
+        await deleteExpense(id);
+        setExpenseMessage('খরচ সফলভাবে মুছে ফেলা হয়েছে।');
+      } catch (error) {
+        setExpenseMessage('খরচ মুছতে ব্যর্থ।');
+      }
+    }
+  };
+
+  const handleUpdateExpense = async (formData) => {
+    try {
+      await updateExpense({ id: editingExpense.id, data: formData });
+      setExpenseMessage('খরচ সফলভাবে আপডেট করা হয়েছে!');
+      setIsExpenseModalOpen(false);
+      setEditingExpense(null);
+    } catch (error) {
+      setExpenseMessage('খরচ আপডেট করতে ব্যর্থ।');
     }
   };
 
@@ -285,7 +310,11 @@ export default function TransactionSection() {
       </div>
 
       <h3 className="text-2xl font-bold text-gray-800 mt-10 mb-6 border-b pb-3">আজকের লেনদেন</h3>
-      {transactions.length === 0 ? (
+      {transactionsLoading ? (
+        <p className="text-center text-gray-600 py-8">লোড হচ্ছে...</p>
+      ) : transactionsError ? (
+        <p className="text-center text-red-500 py-8">ডেটা লোড করতে সমস্যা হয়েছে</p>
+      ) : transactions.length === 0 ? (
         <p className="text-gray-600 text-center py-8">আজকের কোনো লেনদেন নেই।</p>
       ) : (
         <div className="overflow-x-auto mb-8">
@@ -295,7 +324,8 @@ export default function TransactionSection() {
                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tl-lg">রোগীর নাম</th>
                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">কাজের বিবরণ</th>
                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">পরিমাণ (৳)</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">পেমেন্ট পদ্ধতি</th>
+                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">পেমেন্ট পদ্ধতি</th>
+                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">কার্যক্রম</th>
               </tr>
             </thead>
             <tbody>
@@ -305,6 +335,24 @@ export default function TransactionSection() {
                   <td className="py-3 px-4 text-sm text-gray-800">{tx.work_done}</td>
                   <td className="py-3 px-4 text-sm text-gray-800">{tx.amount_paid.toLocaleString('bn-BD')}</td>
                   <td className="py-3 px-4 text-sm text-gray-800">{tx.payment_method}</td>
+                  <td className="py-3 px-4 text-sm text-gray-800">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditTransaction(tx)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"
+                        title="Edit"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTransaction(tx.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -313,7 +361,11 @@ export default function TransactionSection() {
       )}
 
       <h3 className="text-2xl font-bold text-gray-800 mt-10 mb-6 border-b pb-3">আজকের খরচ</h3>
-      {expenses.length === 0 ? (
+      {expensesLoading ? (
+        <p className="text-center text-gray-600 py-8">লোড হচ্ছে...</p>
+      ) : expensesError ? (
+        <p className="text-center text-red-500 py-8">ডেটা লোড করতে সমস্যা হয়েছে</p>
+      ) : expenses.length === 0 ? (
         <p className="text-gray-600 text-center py-8">আজকের কোনো খরচ নেই।</p>
       ) : (
         <div className="overflow-x-auto">
@@ -321,7 +373,8 @@ export default function TransactionSection() {
             <thead className="bg-gray-200">
               <tr>
                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tl-lg">বিবরণ</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">পরিমাণ (৳)</th>
+                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">পরিমাণ (৳)</th>
+                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 rounded-tr-lg">কার্যক্রম</th>
               </tr>
             </thead>
             <tbody>
@@ -329,12 +382,175 @@ export default function TransactionSection() {
                 <tr key={exp.id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="py-3 px-4 text-sm text-gray-800">{exp.description}</td>
                   <td className="py-3 px-4 text-sm text-gray-800">{exp.amount.toLocaleString('bn-BD')}</td>
+                  <td className="py-3 px-4 text-sm text-gray-800">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditExpense(exp)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"
+                        title="Edit"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteExpense(exp.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Transaction Edit Modal */}
+      <Modal
+        isOpen={isTransactionModalOpen}
+        onClose={() => setIsTransactionModalOpen(false)}
+        title="লেনদেন সম্পাদনা"
+      >
+        {editingTransaction && (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            handleUpdateTransaction({
+              patient_name: formData.get('patient_name'),
+              work_done: formData.get('work_done'),
+              amount_paid: parseFloat(formData.get('amount_paid')),
+              payment_method: formData.get('payment_method'),
+              is_free: formData.get('is_free') === 'on',
+              date: formData.get('date')
+            });
+          }} className="space-y-4">
+            <div>
+              <label className="block text-gray-800 text-sm font-semibold mb-2">রোগীর নাম:</label>
+              <input
+                type="text"
+                name="patient_name"
+                defaultValue={editingTransaction.patient_name}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-800 text-sm font-semibold mb-2">কি কাজ হলো:</label>
+              <textarea
+                name="work_done"
+                defaultValue={editingTransaction.work_done}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                rows="2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-800 text-sm font-semibold mb-2">কত টাকা দিলো:</label>
+              <input
+                type="number"
+                name="amount_paid"
+                defaultValue={editingTransaction.amount_paid}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-800 text-sm font-semibold mb-2">পেমেন্ট পদ্ধতি:</label>
+              <select
+                name="payment_method"
+                defaultValue={editingTransaction.payment_method}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                required
+              >
+                <option value="Cash">ক্যাশ</option>
+                <option value="bKash">বিকাশ</option>
+                <option value="Online">অনলাইন</option>
+                <option value="Free">ফ্রি</option>
+              </select>
+            </div>
+            <input type="hidden" name="date" value={editingTransaction.date} />
+            <div className="flex gap-3 pt-4">
+              <button
+                type="submit"
+                disabled={isUpdatingTransaction}
+                className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300 font-semibold"
+              >
+                {isUpdatingTransaction ? 'আপডেট হচ্ছে...' : 'আপডেট করুন'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTransactionModalOpen(false)}
+                className="flex-1 bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 font-semibold"
+              >
+                বাতিল
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Expense Edit Modal */}
+      <Modal
+        isOpen={isExpenseModalOpen}
+        onClose={() => setIsExpenseModalOpen(false)}
+        title="খরচ সম্পাদনা"
+      >
+        {editingExpense && (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            handleUpdateExpense({
+              description: formData.get('description'),
+              amount: parseFloat(formData.get('amount')),
+              date: formData.get('date')
+            });
+          }} className="space-y-4">
+            <div>
+              <label className="block text-gray-800 text-sm font-semibold mb-2">খরচের বিবরণ:</label>
+              <input
+                type="text"
+                name="description"
+                defaultValue={editingExpense.description}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500 bg-white text-gray-900"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-800 text-sm font-semibold mb-2">পরিমাণ (টাকা):</label>
+              <input
+                type="number"
+                name="amount"
+                defaultValue={editingExpense.amount}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500 bg-white text-gray-900"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <input type="hidden" name="date" value={editingExpense.date} />
+            <div className="flex gap-3 pt-4">
+              <button
+                type="submit"
+                disabled={isUpdatingExpense}
+                className="flex-1 bg-red-600 text-white py-2 rounded-md hover:bg-red-700 disabled:bg-red-300 font-semibold"
+              >
+                {isUpdatingExpense ? 'আপডেট হচ্ছে...' : 'আপডেট করুন'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsExpenseModalOpen(false)}
+                className="flex-1 bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 font-semibold"
+              >
+                বাতিল
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 } 
