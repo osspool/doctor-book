@@ -34,6 +34,9 @@ export default function AuthProvider({ children }) {
     setIsAuthenticated(false);
     setPassword('');
     localStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem('isSummaryAuthenticated');
+    localStorage.removeItem('authTimestamp');
+    window.location.reload();
   };
 
   // Show loading state

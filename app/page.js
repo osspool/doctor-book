@@ -6,11 +6,12 @@ import Navigation from '../components/Navigation';
 import AppointmentSection from '../components/sections/AppointmentSection';
 import MonthlyAppointmentSection from '../components/MonthlyAppointmentSection';
 import TransactionSection from '../components/TransactionSection';
-import MonthlySummarySection from '../components/MonthlySummarySection';
+import ProtectedSummarySection from '../components/ProtectedSummarySection';
 import BillGeneratorSection from '../components/BillGeneratorSection';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('appointments');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   return (
     <AuthProvider>
@@ -32,13 +33,23 @@ export default function Home() {
               <p className="text-center text-lg">রোগী ব্যবস্থাপনা এবং আর্থিক হিসাব</p>
             </header>
 
-            <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
+            <Navigation 
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab}
+              isAuthenticated={isAuthenticated}
+              setIsAuthenticated={setIsAuthenticated}
+            />
 
             <main className="bg-white p-6 rounded-lg shadow-lg">
               {activeTab === 'appointments' && <AppointmentSection />}
               {activeTab === 'monthlyAppointments' && <MonthlyAppointmentSection />}
               {activeTab === 'transactions' && <TransactionSection />}
-              {activeTab === 'summary' && <MonthlySummarySection />}
+              {activeTab === 'summary' && (
+                <ProtectedSummarySection 
+                  isAuthenticated={isAuthenticated}
+                  setIsAuthenticated={setIsAuthenticated}
+                />
+              )}
               {activeTab === 'bill' && <BillGeneratorSection />}
             </main>
           </div>
